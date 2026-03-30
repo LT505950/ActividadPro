@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+/* Reset base */
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* opcional: triángulo logo */
+.clip-triangle {
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+/* Ocultar botón de Next.js Dev Tools */
+nextjs-portal {
+  display: none !important;
+}

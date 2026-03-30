@@ -1,0 +1,27 @@
+export default function Header() {
+  return (
+    <div className="h-16 bg-[#003A8F] text-white flex items-center px-6 shadow-sm">
+      
+      {/* Logo + título */}
+      <div className="flex items-center gap-3">
+        
+        <img
+          src="data:image/webp;base64,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"
+          alt="Profuturo"
+          className="h-8 w-auto object-contain"
+        />
+
+        <span className="text-gray-400">|</span>
+
+        <span className="text-sm text-white">
+          Asistente de Soporte Técnico
+        </span>
+      </div>
+
+      {/* Usuario */}
+      <div className="ml-auto text-sm text-white/80">
+        Luis Abonce
+      </div>
+    </div>
+  )
+}
