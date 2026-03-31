@@ -3,7 +3,7 @@ import ollama
 def generate_answer_stream(prompt: str):
     """Generador que hace streaming token a token desde Ollama"""
     stream = ollama.chat(
-        model="mistral:7b",
+        model="phi4-mini",
         messages=[{"role": "user", "content": prompt}],
         stream=True
     )

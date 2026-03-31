@@ -1,3 +1,5 @@
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 type Props = {
   role: "user" | "bot"
   text: string
@@ -27,7 +29,15 @@ export default function MessageBubble({ role, text, image }: Props) {
         )}
 
         {/* Texto */}
-        {text && <div>{text}</div>}
+        
+        { text && (
+          <div className="prose prose-sm max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {text}
+            </ReactMarkdown>
+          </div>
+        )}
+
       </div>
 
     </div>
