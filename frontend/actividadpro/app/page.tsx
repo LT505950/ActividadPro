@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import Sidebar from "../components/Sidebar"
-import Chat from "../components/Chat"
-import RightPanel from "../components/RightPanel"
-import Header from "../components/Header"
+import Sidebar from "./components/Sidebar"
+import Chat from "./components/Chat"
+import RightPanel from "./components/RightPanel"
+import Header from "./components/Header"
 
 type Chunk = {
   text: string
