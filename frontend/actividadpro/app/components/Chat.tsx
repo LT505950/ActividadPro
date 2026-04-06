@@ -6,6 +6,7 @@ type Message = {
   role: "user" | "bot"
   text: string
   image?: string
+  responseTime?: number
 }
 
 type Chunk = {
@@ -50,6 +51,8 @@ export default function Chat({ onChunks, onTokensInfo }: Props) {
       { role: "bot", text: "" }
     ])
     setIsLoading(true)
+
+    const startTime = Date.now()
 
     try {
       let res: Response
@@ -129,6 +132,18 @@ export default function Chat({ onChunks, onTokensInfo }: Props) {
         }
       }
 
+      const endTime = Date.now()
+      const responseTime = endTime - startTime
+
+      setMessages(prev => {
+        const updated = [...prev]
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          responseTime
+        }
+        return updated
+      })
+
     } catch (error) {
       console.error("Stream error:", error)
       setMessages(prev => {
@@ -190,6 +205,7 @@ export default function Chat({ onChunks, onTokensInfo }: Props) {
             role={msg.role}
             text={msg.text}
             image={msg.image}
+            responseTime={msg.responseTime}
           />
         ))}
       </div>
