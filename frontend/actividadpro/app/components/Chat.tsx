@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import MessageBubble from "./MessageBubble"
 
 type Message = {
@@ -32,6 +32,12 @@ export default function Chat({ onChunks, onTokensInfo }: Props) {
   const [input, setInput] = useState("")
   const [image, setImage] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll hacia el último mensaje
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
 
   const handleSend = async () => {
     if (input.trim() === "" && !image) return
@@ -208,6 +214,7 @@ export default function Chat({ onChunks, onTokensInfo }: Props) {
             responseTime={msg.responseTime}
           />
         ))}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Preview nombre imagen */}
