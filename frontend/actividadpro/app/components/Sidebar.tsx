@@ -15,19 +15,8 @@ export default function Sidebar() {
         <div className="px-3 py-2 rounded-lg hover:bg-blue-700 cursor-pointer">
           Historial
         </div>
-
-        <div className="px-3 py-2 rounded-lg hover:bg-blue-700 cursor-pointer">
-          Categorías
-        </div>
-
-        <div className="pl-4 text-xs text-blue-200 space-y-1">
-          <div>Inicio de sesión</div>
-          <div>Errores de red</div>
-          <div>Problemas de carga</div>
-          <div>Configuración</div>
-        </div>
-
-      </nav>
+      
+     </nav>
 
       <div className="mt-auto text-xs text-blue-300">
         v1.0
