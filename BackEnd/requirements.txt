@@ -1,0 +1,9 @@
+fastapi
+ollama
+qdrant-client
+pandas
+pydantic
+requests
+easyocr
+uvicorn
+python-multipart
