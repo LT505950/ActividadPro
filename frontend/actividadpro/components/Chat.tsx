@@ -1,5 +1,4 @@
 "use client"
-
 import { useState } from "react"
 import MessageBubble from "./MessageBubble"
 
@@ -14,11 +13,18 @@ type Chunk = {
   source: string
 }
 
-type Props = {
-  onChunks: (chunks: Chunk[]) => void
+type TokensInfo = {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
 }
 
-export default function Chat({ onChunks }: Props) {
+type Props = {
+  onChunks: (chunks: Chunk[]) => void
+  onTokensInfo?: (info: TokensInfo) => void
+}
+
+export default function Chat({ onChunks, onTokensInfo }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     { role: "bot", text: "Hola, ¿en qué puedo ayudarte?" }
   ])
@@ -31,23 +37,18 @@ export default function Chat({ onChunks }: Props) {
 
     const userMsg = input.trim() || (image ? "Te proporciono la descripción del error" : "")
     const currentImage = image
-
-    const imagePreview = currentImage
-      ? URL.createObjectURL(currentImage)
-      : undefined
+    const imagePreview = currentImage ? URL.createObjectURL(currentImage) : undefined
 
     setImage(null)
     setInput("")
-
     const fileInput = document.getElementById("fileInput") as HTMLInputElement
     if (fileInput) fileInput.value = ""
 
     setMessages(prev => [
       ...prev,
       { role: "user", text: userMsg || "", image: imagePreview },
-      { role: "bot", text: "" } // 👈 empieza vacío, se va llenando
+      { role: "bot", text: "" }
     ])
-
     setIsLoading(true)
 
     try {
@@ -71,45 +72,65 @@ export default function Chat({ onChunks }: Props) {
 
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
-
       if (!reader) throw new Error("No stream disponible")
 
-      // 🔥 Leer el stream token a token
+      // Buffer para manejar eventos SSE que llegan partidos entre chunks de red
+      let buffer = ""
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const raw = decoder.decode(value)
+        buffer += decoder.decode(value, { stream: true })
 
-        // Puede venir más de un evento en el mismo chunk
-        const lines = raw.split("\n").filter(line => line.startsWith("data: "))
+        // Los eventos SSE se separan por doble salto de linea
+        const parts = buffer.split("\n\n")
+        // El ultimo fragmento puede estar incompleto, lo guardamos en buffer
+        buffer = parts.pop() ?? ""
 
-        for (const line of lines) {
-          const jsonStr = line.replace("data: ", "").trim()
-          if (!jsonStr) continue
+        for (const part of parts) {
+          const lines = part.split("\n").filter(l => l.startsWith("data: "))
 
-          const event = JSON.parse(jsonStr)
+          for (const line of lines) {
+            const jsonStr = line.replace("data: ", "").trim()
+            if (!jsonStr) continue
 
-          if (event.type === "chunks") {
-            // Recibimos los chunks del RAG
-            onChunks(event.chunks || [])
-          }
+            let event: any
+            try {
+              event = JSON.parse(jsonStr)
+            } catch {
+              // Saltar lineas malformadas sin romper el stream
+              continue
+            }
 
-          if (event.type === "token") {
-            // 🔥 Agregamos el token al último mensaje del bot
-            setMessages(prev => {
-              const updated = [...prev]
-              updated[updated.length - 1] = {
-                role: "bot",
-                text: updated[updated.length - 1].text + event.token
-              }
-              return updated
-            })
+            if (event.type === "chunks") {
+              onChunks(event.chunks || [])
+            }
+
+            if (event.type === "token") {
+              setMessages(prev => {
+                const updated = [...prev]
+                updated[updated.length - 1] = {
+                  role: "bot",
+                  text: updated[updated.length - 1].text + event.token
+                }
+                return updated
+              })
+            }
+
+            if (event.type === "tokens_info") {
+              onTokensInfo?.({
+                prompt_tokens: event.prompt_tokens,
+                completion_tokens: event.completion_tokens,
+                total_tokens: event.total_tokens
+              })
+            }
           }
         }
       }
 
     } catch (error) {
+      console.error("Stream error:", error)
       setMessages(prev => {
         const updated = [...prev]
         updated[updated.length - 1] = {

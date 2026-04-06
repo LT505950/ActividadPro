@@ -11,8 +11,15 @@ type Chunk = {
   source: string
 }
 
+type TokensInfo = {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+}
+
 export default function Home() {
   const [chunks, setChunks] = useState<Chunk[]>([]) // 🔥 estado global de chunks
+  const [tokensInfo, setTokensInfo] = useState<TokensInfo | undefined>(undefined)
 
   return (
     <div className="flex h-screen w-full bg-[#f5f7fb]">
@@ -25,11 +32,11 @@ export default function Home() {
           
           {/* Chat */}
           <div className="flex-1 p-4 overflow-hidden">
-            <Chat onChunks={setChunks} />
+            <Chat onChunks={setChunks} onTokensInfo={setTokensInfo} />
           </div>
 
           {/* Right Panel */}
-          <RightPanel chunks={chunks} />
+          <RightPanel chunks={chunks} tokensInfo={tokensInfo} />
           
         </div>
       </div>

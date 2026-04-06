@@ -6,9 +6,10 @@ Este proyecto es un sistema de helpdesk inteligente para la aplicación móvil *
 
 ## Características Principales
 
-- **Chat Interactivo**: Interfaz de chat en tiempo real con streaming de respuestas.
+- **Chat Interactivo con Streaming**: Interfaz de chat en tiempo real con respuestas token por token para una experiencia fluida.
 - **Búsqueda Inteligente**: Utiliza embeddings y búsqueda vectorial para encontrar información relevante.
 - **Procesamiento de Imágenes**: Soporte para OCR (Reconocimiento Óptico de Caracteres) en español para procesar capturas de pantalla o imágenes relacionadas con la app.
+- **Seguimiento de Tokens**: Muestra estadísticas de uso de tokens (entrada, salida y total) para monitoreo de costos y rendimiento.
 - **Base de Conocimiento**: Alimentado por documentos Markdown y Excel que contienen manuales, guías y documentación de Actividad PRO.
 - **Arquitectura Modular**: Backend en Python con FastAPI y frontend en Next.js con React.
 
@@ -36,27 +37,32 @@ Este proyecto es un sistema de helpdesk inteligente para la aplicación móvil *
 ## Tecnologías Utilizadas
 
 ### Backend
-- **Python 3.x**
+- **Python 3.8+**
 - **FastAPI**: Framework web para APIs REST.
 - **Qdrant**: Base de datos vectorial.
-- **Ollama**: Para modelos de lenguaje local.
+- **Ollama**: Para modelos de lenguaje local (ej. gemma4:e2b).
 - **EasyOCR**: Para reconocimiento óptico de caracteres en español.
 - **Pandas**: Para procesamiento de archivos Excel.
-- **LangChain** (probablemente): Para pipelines RAG.
+- **Pydantic**: Para validación de datos.
+- **Requests**: Para llamadas HTTP.
+- **Uvicorn**: Servidor ASGI.
+- **Python-multipart**: Para manejo de archivos en FastAPI.
 
 ### Frontend
-- **Next.js 16**: Framework React.
-- **React 19**: Biblioteca para interfaces de usuario.
-- **TypeScript**: Tipado estático.
-- **Tailwind CSS**: Framework de estilos.
-- **ESLint**: Linting de código.
+- **Next.js 16.2.1**: Framework React.
+- **React 19.2.4**: Biblioteca para interfaces de usuario.
+- **TypeScript 5**: Tipado estático.
+- **Tailwind CSS 4**: Framework de estilos.
+- **ESLint 9**: Linting de código.
+- **React-Markdown 10.1.0**: Para renderizar Markdown.
+- **Remark-GFM 4.0.1**: Soporte para GitHub Flavored Markdown.
 
 ## Instalación y Configuración
 
 ### Prerrequisitos
 - Python 3.8+
 - Node.js 18+
-- Ollama instalado y configurado con un modelo compatible (ej. llama2)
+- Ollama instalado y configurado con un modelo compatible (ej. gemma4:e2b)
 - Qdrant corriendo (local o remoto)
 
 ### Backend Setup
@@ -113,9 +119,9 @@ Para cargar los documentos al sistema:
 
 1. Inicia el backend y frontend como se describe arriba.
 2. Abre el navegador en `http://localhost:3000` (o el puerto configurado para Next.js).
-3. En la interfaz de chat, escribe preguntas sobre Actividad PRO.
-4. El sistema buscará información relevante en la base de conocimiento y generará respuestas usando el modelo de lenguaje.
-5. Opcionalmente, sube imágenes para que el sistema extraiga texto usando OCR.
+3. En la interfaz de chat, escribe preguntas sobre Actividad PRO o sube imágenes para análisis OCR.
+4. El sistema buscará información relevante en la base de conocimiento y generará respuestas usando el modelo de lenguaje con streaming en tiempo real.
+5. En el panel derecho, verás las fuentes utilizadas (chunks) y las estadísticas de uso de tokens (prompt, completion y total).
 
 ## Estructura del Proyecto
 

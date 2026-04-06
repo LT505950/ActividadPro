@@ -13,16 +13,16 @@ from rag.pipeline import run_rag_stream
 router = APIRouter()
 reader = easyocr.Reader(['es'])
 
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────
 # SEARCH (sin cambios)
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────
 @router.post("/search", response_model=SearchResponse)
 def search(req: SearchRequest):
     return search_chunks(req)
 
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────
 # CHAT CON STREAMING + RAG
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────
 @router.post("/chat")
 async def chat(
     request: Request,
@@ -74,16 +74,33 @@ async def chat(
             + "\n\n"
         )
 
-        # 🔹 Mandamos tokens TAL CUAL (sin tocar formato)
-        for token in token_generator:
-            yield (
-                "data: "
-                + json.dumps(
-                    {"type": "token", "token": token},
-                    ensure_ascii=False
+        # 🔹 Iteramos el generador: puede emitir tokens o tokens_info
+        for event in token_generator:
+            if event["type"] == "token":
+                # Token de texto normal
+                yield (
+                    "data: "
+                    + json.dumps(
+                        {"type": "token", "token": event["value"]},
+                        ensure_ascii=False
+                    )
+                    + "\n\n"
                 )
-                + "\n\n"
-            )
+            elif event["type"] == "tokens_info":
+                # Estadísticas de tokens al final
+                yield (
+                    "data: "
+                    + json.dumps(
+                        {
+                            "type": "tokens_info",
+                            "prompt_tokens": event["prompt_tokens"],
+                            "completion_tokens": event["completion_tokens"],
+                            "total_tokens": event["total_tokens"]
+                        },
+                        ensure_ascii=False
+                    )
+                    + "\n\n"
+                )
 
         # 🔹 Evento de fin
         yield (
