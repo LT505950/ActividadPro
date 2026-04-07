@@ -33,6 +33,9 @@ export default function Chat({ onChunks, onTokensInfo }: Props) {
   const [image, setImage] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  const sessionIdRef = useRef<string>(crypto.randomUUID())
+
 
   // Auto-scroll hacia el último mensaje
   useEffect(() => {
@@ -72,11 +75,14 @@ export default function Chat({ onChunks, onTokensInfo }: Props) {
           body: formData
         })
       } else {
-        res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/chat`, {
+        res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/chat2/${sessionIdRef.current}`,
+        {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: userMsg })
-        })
+        }
+      )
       }
 
       const reader = res.body?.getReader()

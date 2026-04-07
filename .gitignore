@@ -1,7 +1,7 @@
 /frontend/actividadpro/.next/
 /frontend/actividadpro/node_modules
-a.json
 a.py
 *.pyc
 *.env
 *.env.local
+*.json

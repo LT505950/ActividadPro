@@ -8,3 +8,7 @@ easyocr
 uvicorn
 python-multipart
 python-dotenv
+opentelemetry-api 
+opentelemetry-sdk 
+opentelemetry-instrumentation-fastapi
+opentelemetry-exporter-otlp
