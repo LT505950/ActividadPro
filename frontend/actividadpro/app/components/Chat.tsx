@@ -67,12 +67,12 @@ export default function Chat({ onChunks, onTokensInfo }: Props) {
         const formData = new FormData()
         formData.append("query", userMsg || "")
         formData.append("file", currentImage)
-        res = await fetch("http://localhost:8000/chat", {
+        res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/chat`, {
           method: "POST",
           body: formData
         })
       } else {
-        res = await fetch("http://localhost:8000/chat", {
+        res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: userMsg })

@@ -1,13 +1,17 @@
+import os
 import ollama
 from typing import List
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def get_embedding(text: str) -> List[float]:
     """
-    Obtiene el embedding de un texto usando el modelo 'nomic-embed-text:latest'.
+    Obtiene el embedding de un texto usando el modelo configurado en OLLAMA_EMBED_MODEL.
     """
     try:
         response = ollama.embeddings(
-            model="bge-m3",
+            model=os.getenv("OLLAMA_EMBED_MODEL", "bge-m3"),
             prompt=text
         )
         return response["embedding"]

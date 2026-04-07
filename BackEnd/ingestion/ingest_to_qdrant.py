@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct
 
@@ -7,9 +8,11 @@ from load_excel import load_excel
 from chunking import chunk_text
 from embedding import get_embedding
 
+load_dotenv()
+
 # ── CONFIG ──────────────────────────────────────────────────
-QDRANT_HOST      = "localhost"
-QDRANT_PORT      = 6333
+QDRANT_HOST      = os.getenv('QDRANT_HOST', 'localhost')
+QDRANT_PORT      = int(os.getenv('QDRANT_PORT', 6333))
 COLLECTION_NAME  = "soporte_actividadpro"
 
 # Dimensiones del modelo nomic-embed-text (fijado por el modelo, NO cambiar

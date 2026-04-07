@@ -3,3 +3,5 @@
 a.json
 a.py
 *.pyc
+*.env
+*.env.local
