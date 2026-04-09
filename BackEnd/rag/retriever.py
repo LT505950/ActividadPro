@@ -1,11 +1,29 @@
 from services.embedding_service import get_embedding
 from services.qdrant_service import search_qdrant
 
+# ✅ Mapeo central de RAG → colección Qdrant
+RAG_COLLECTIONS = {
+    "actividadpro": "soporte_actividadpro",
+    "carbot": "soporte_carbot"
+}
+
 def search_chunks(request):
+    # 1️⃣ Obtener embedding
     embedding_vector = get_embedding(request.query)
 
-    data = search_qdrant(embedding_vector, request.top)
+    # 2️⃣ Resolver RAG (default seguro)
+    rag = getattr(request, "rag", "actividadpro")
+    collection = RAG_COLLECTIONS.get(rag, "soporte_actividadpro")
 
+    print(f"RAG solicitado: {rag} → Colección Qdrant: {collection}")
+
+    # 3️⃣ Buscar en Qdrant (colección dinámica)
+    data = search_qdrant(
+        vector=embedding_vector,
+        top=request.top,
+        collection=collection
+    )
+    # 4️⃣ Normalizar chunks
     chunks = [
         {
             "id": str(point.get("id")),

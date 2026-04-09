@@ -16,28 +16,32 @@ type TokensInfo = {
   completion_tokens: number
   total_tokens: number
 }
+export type RagType = "actividadpro" | "carbot"
 
 export default function Home() {
-  const [chunks, setChunks] = useState<Chunk[]>([]) // 🔥 estado global de chunks
-  const [tokensInfo, setTokensInfo] = useState<TokensInfo | undefined>(undefined)
+  const [chunks, setChunks] = useState<Chunk[]>([])
+  const [tokensInfo, setTokensInfo] = useState<TokensInfo | undefined>()
+  
+  // ✅ ESTADO GLOBAL DEL RAG
+  const [ragActivo, setRagActivo] = useState<RagType>("actividadpro")
 
   return (
     <div className="flex h-screen w-full bg-[#f5f7fb]">
-      <Sidebar />
+      <Sidebar ragActivo={ragActivo} setRagActivo={setRagActivo} />
 
       <div className="flex flex-col flex-1">
-        <Header />
+        <Header ragActivo={ragActivo} />
 
         <div className="flex flex-1 overflow-hidden">
-          
-          {/* Chat */}
           <div className="flex-1 p-4 overflow-hidden">
-            <Chat onChunks={setChunks} onTokensInfo={setTokensInfo} />
+            <Chat
+              ragActivo={ragActivo}
+              onChunks={setChunks}
+              onTokensInfo={setTokensInfo}
+            />
           </div>
 
-          {/* Right Panel */}
           <RightPanel chunks={chunks} tokensInfo={tokensInfo} />
-          
         </div>
       </div>
     </div>

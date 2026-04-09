@@ -38,6 +38,7 @@ async def chat_multiturn(
         try:
             body = await request.json()
             query = body.get("query", "")
+            rag = body.get("rag", "actividadpro")
         except Exception:
             query = ""
 
@@ -85,7 +86,7 @@ async def chat_multiturn(
         ):
             # ── 6. RETRIEVAL
             retrieval_start = perf_counter()
-            chunks, token_generator = run_rag_stream(final_query)
+            chunks, token_generator = run_rag_stream(final_query, rag)
             retrieval_latency_ms = (perf_counter() - retrieval_start) * 1000
 
             retrieval_scores = [c.get("score", 0) for c in chunks]

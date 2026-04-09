@@ -21,11 +21,12 @@ type TokensInfo = {
 }
 
 type Props = {
+  ragActivo: "actividadpro" | "carbot"
   onChunks: (chunks: Chunk[]) => void
   onTokensInfo?: (info: TokensInfo) => void
 }
 
-export default function Chat({ onChunks, onTokensInfo }: Props) {
+export default function Chat({ ragActivo, onChunks, onTokensInfo }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     { role: "bot", text: "Hola, ¿en qué puedo ayudarte?" }
   ])
@@ -36,8 +37,6 @@ export default function Chat({ onChunks, onTokensInfo }: Props) {
   
   const sessionIdRef = useRef<string>(crypto.randomUUID())
 
-
-  // Auto-scroll hacia el último mensaje
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
@@ -79,8 +78,12 @@ export default function Chat({ onChunks, onTokensInfo }: Props) {
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/chat2/${sessionIdRef.current}`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: userMsg })
+            headers: { "Content-Type": "application/json" },         
+          body: JSON.stringify({
+            query: userMsg,
+            rag: ragActivo
+          })
+
         }
       )
       }
