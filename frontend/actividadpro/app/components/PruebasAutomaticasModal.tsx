@@ -1,5 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+type RagType = "actividadpro" | "carbot";
 
 type CSVRow = {
   question: string;
@@ -10,6 +12,7 @@ type CSVRow = {
 type Props = {
   open: boolean;
   onClose: () => void;
+  ragActivo: RagType;
 };
 
 /* ===================== CSV UTIL ===================== */
@@ -39,50 +42,56 @@ const parseCSVLine = (line: string, separator: string): string[] => {
   return result;
 };
 
-export default function PruebasAutomaticasModal({ open, onClose }: Props) {
+/* ===================== RAG → CSV MAP ===================== */
+const RAG_CSV_PATH: Record<RagType, string> = {
+  actividadpro: "/evaluar_helpdesk.csv",
+  carbot: "/evaluar_carbot.csv",
+};
+
+export default function PruebasAutomaticasModal({
+  open,
+  onClose,
+  ragActivo,
+}: Props) {
   const [mode, setMode] = useState<"list" | "new">("list");
   const [rows, setRows] = useState<CSVRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const [fileName, setFileName] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
 
-  if (!open) return null;
+  /* ===================== AUTO LOAD CSV ===================== */
+  useEffect(() => {
+    if (!open) return;
 
-  /* ===================== FILE HANDLING ===================== */
-
-  const handleFile = (file: File) => {
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      setError("Solo se permiten archivos CSV");
+    // ✅ Forzar modo new al abrir
+    if (mode !== "new") {
+      setMode("new");
       return;
     }
 
-    setError(null);
+    const path = RAG_CSV_PATH[ragActivo];
     setLoading(true);
-    setFileName(file.name);
+    setError(null);
 
-    const reader = new FileReader();
+    fetch(path)
+      .then(res => {
+        if (!res.ok) throw new Error();
+        return res.text();
+      })
+      .then(text => parseCSV(text))
+      .catch(() =>
+        setError("Error al cargar el CSV del RAG seleccionado")
+      )
+      .finally(() => setLoading(false));
+  }, [open, mode, ragActivo]);
 
-    reader.onload = e => {
-      const text = e.target?.result;
-      if (!text) {
-        setError("El archivo está vacío");
-        setLoading(false);
-        return;
-      }
-      parseCSV(text as string);
-      setLoading(false);
-    };
 
-    reader.onerror = () => {
-      setError("No se pudo leer el archivo");
-      setLoading(false);
-    };
+  // ✅ AHORA SÍ
+  if (!open) return null;
 
-    reader.readAsText(file);
-  };
 
+
+  /* ===================== PARSE CSV ===================== */
   const parseCSV = (csvText: string) => {
     const cleanText = csvText.replace(/\r/g, "");
 
@@ -114,7 +123,7 @@ export default function PruebasAutomaticasModal({ open, onClose }: Props) {
       testMethodTypeIndex === -1
     ) {
       setError(
-        "El CSV debe contener las columnas: question, expectedResponse, testMethodType"
+        "El CSV debe contener: question, expectedResponse, testMethodType"
       );
       return;
     }
@@ -133,141 +142,75 @@ export default function PruebasAutomaticasModal({ open, onClose }: Props) {
       r => r.question && r.expectedResponse && r.testMethodType
     );
 
-    if (validRows.length === 0) {
-      setError("No se encontraron filas válidas en el CSV");
+    if (!validRows.length) {
+      setError("No se encontraron filas válidas");
       return;
     }
 
     setRows(validRows);
   };
 
-  const removeRow = (index: number) => {
-    setRows(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const toggleExpand = (index: number) => {
-    setExpanded(prev => ({
-      ...prev,
-      [index]: !prev[index],
-    }));
-  };
-
   const resetNewTest = () => {
     setRows([]);
     setError(null);
-    setFileName(null);
     setExpanded({});
-    setLoading(false);
   };
 
+  const toggleExpand = (i: number) =>
+    setExpanded(p => ({ ...p, [i]: !p[i] }));
+
   /* ===================== UI ===================== */
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-[90%] h-[90%] bg-white rounded-xl shadow-lg flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/50 flex justify-center items-center">
+      <div className="bg-white w-[90%] h-[90%] rounded-xl flex flex-col">
 
-        {/* HEADER */}
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold text-[#003A8F]">
-            Pruebas Automáticas
+        <div className="px-6 py-4 border-b flex justify-between">
+          <h2 className="font-semibold">
+            Pruebas Automáticas –{" "}
+            {ragActivo === "actividadpro" ? "Actividad Pro" : "CarBot"}
           </h2>
-          <button onClick={onClose} className="text-xl text-gray-500">✕</button>
+          <button onClick={onClose}>✕</button>
         </div>
 
-        {/* BODY */}
         <div className="flex-1 p-6 overflow-auto">
+          {loading && <p>Cargando casos...</p>}
+          {error && <p className="text-red-500 text-sm">{error}</p>}
 
-          {mode === "list" && (
-            <div className="border border-dashed rounded-lg p-6 text-center text-gray-400">
-              Aún no existen evaluaciones registradas
-            </div>
-          )}
-
-          {mode === "new" && rows.length === 0 && (
-            <div
-              className={`h-64 border-2 border-dashed rounded-xl flex items-center justify-center
-                ${dragOver ? "bg-yellow-50 border-yellow-400" : "border-gray-300"}
-              `}
-              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={e => {
-                e.preventDefault();
-                setDragOver(false);
-                const file = e.dataTransfer.files?.[0];
-                if (file) handleFile(file);
-              }}
-            >
-              <input
-                type="file"
-                accept=".csv"
-                id="csvInput"
-                className="hidden"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFile(file);
-                }}
-              />
-              <label htmlFor="csvInput" className="cursor-pointer text-blue-600">
-                Seleccionar archivo CSV
-              </label>
-              {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
-            </div>
-          )}
-
-          {mode === "new" && rows.length > 0 && (
-            <div className="border rounded-lg divide-y">
-              {rows.map((row, i) => {
-                const expandedRow = expanded[i];
-                return (
-                  <div key={i} className="p-4 space-y-1 text-sm">
-                    <div>
-                      {expandedRow ? row.question : row.question.slice(0, 120)}
-                      {row.question.length > 120 && (
-                        <button
-                          className="ml-2 text-blue-500 text-xs"
-                          onClick={() => toggleExpand(i)}
-                        >
-                          {expandedRow ? "Ver menos" : "Ver más"}
-                        </button>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Expected: {row.expectedResponse}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Método: {row.testMethodType}
-                    </div>
-                    <button
-                      className="text-red-500 text-xs"
-                      onClick={() => removeRow(i)}
-                    >
-                      Eliminar
-                    </button>
+          {!loading &&
+            rows.map((row, i) => {
+              const expandedRow = expanded[i];
+              return (
+                <div key={i} className="border-b py-3 text-sm">
+                  <div>
+                    {expandedRow
+                      ? row.question
+                      : row.question.slice(0, 120)}
+                    {row.question.length > 120 && (
+                      <button
+                        className="text-xs text-blue-500 ml-2"
+                        onClick={() => toggleExpand(i)}
+                      >
+                        {expandedRow ? "Ver menos" : "Ver más"}
+                      </button>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  <div className="text-xs text-gray-500">
+                    Expected: {row.expectedResponse}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Método: {row.testMethodType}
+                  </div>
+                </div>
+              );
+            })}
         </div>
 
-        {/* FOOTER */}
         <div className="border-t px-6 py-4 flex justify-between">
-          {mode === "new" && (
-            <button onClick={() => { setMode("list"); resetNewTest(); }}>
-              ← Volver
-            </button>
-          )}
 
-          <button
-            onClick={() => setMode(mode === "list" ? "new" : "list")}
-            className="bg-yellow-400 text-blue-900 px-4 py-2 rounded"
-          >
-            {mode === "list"
-              ? "Iniciar nueva prueba"
-              : "Ejecutar prueba"}
+          <button className="bg-[#003A8F] text-white px-4 py-2 rounded">
+            Ejecutar prueba
           </button>
         </div>
-
       </div>
     </div>
   );

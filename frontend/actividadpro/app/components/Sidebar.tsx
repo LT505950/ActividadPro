@@ -95,6 +95,7 @@ export default function Sidebar({ ragActivo, setRagActivo }: Props) {
       <PruebasAutomaticasModal
         open={openPruebas}
         onClose={() => setOpenPruebas(false)}
+        ragActivo={ragActivo}
       />
     </>
   );
