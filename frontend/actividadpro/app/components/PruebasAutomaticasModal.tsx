@@ -3,11 +3,40 @@ import { useState } from "react";
 
 type CSVRow = {
   question: string;
+  expectedResponse: string;
+  testMethodType: string;
 };
 
 type Props = {
   open: boolean;
   onClose: () => void;
+};
+
+/* ===================== CSV UTIL ===================== */
+const parseCSVLine = (line: string, separator: string): string[] => {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === separator && !inQuotes) {
+      result.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  result.push(current.trim());
+  return result;
 };
 
 export default function PruebasAutomaticasModal({ open, onClose }: Props) {
@@ -35,7 +64,7 @@ export default function PruebasAutomaticasModal({ open, onClose }: Props) {
 
     const reader = new FileReader();
 
-    reader.onload = (e) => {
+    reader.onload = e => {
       const text = e.target?.result;
       if (!text) {
         setError("El archivo está vacío");
@@ -71,36 +100,48 @@ export default function PruebasAutomaticasModal({ open, onClose }: Props) {
     if (lines[0].includes("\t")) separator = "\t";
     else if (lines[0].includes(";")) separator = ";";
 
-    const headers = lines[0]
-      .split(separator)
-      .map(h => h.replace(/\uFEFF/g, "").trim().toLowerCase());
-
-    const questionIndex = headers.findIndex(h =>
-      h === "question" || h.includes("question")
+    const headers = parseCSVLine(lines[0], separator).map(h =>
+      h.replace(/\uFEFF/g, "").toLowerCase()
     );
 
-    if (questionIndex === -1) {
-      setError("El CSV no contiene la columna 'question'");
+    const questionIndex = headers.indexOf("question");
+    const expectedResponseIndex = headers.indexOf("expectedresponse");
+    const testMethodTypeIndex = headers.indexOf("testmethodtype");
+
+    if (
+      questionIndex === -1 ||
+      expectedResponseIndex === -1 ||
+      testMethodTypeIndex === -1
+    ) {
+      setError(
+        "El CSV debe contener las columnas: question, expectedResponse, testMethodType"
+      );
       return;
     }
 
     const data: CSVRow[] = lines.slice(1).map(line => {
-      const columns = line.split(separator);
-      const question = columns[questionIndex]?.trim() || "";
-      return { question };
+      const columns = parseCSVLine(line, separator);
+
+      return {
+        question: columns[questionIndex] || "",
+        expectedResponse: columns[expectedResponseIndex] || "",
+        testMethodType: columns[testMethodTypeIndex] || "",
+      };
     });
 
-    const validRows = data.filter(r => r.question.length > 0);
+    const validRows = data.filter(
+      r => r.question && r.expectedResponse && r.testMethodType
+    );
 
     if (validRows.length === 0) {
-      setError("No se encontraron preguntas en el CSV");
+      setError("No se encontraron filas válidas en el CSV");
       return;
     }
 
     setRows(validRows);
   };
 
-  const removeQuestion = (index: number) => {
+  const removeRow = (index: number) => {
     setRows(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -130,170 +171,101 @@ export default function PruebasAutomaticasModal({ open, onClose }: Props) {
           <h2 className="text-lg font-semibold text-[#003A8F]">
             Pruebas Automáticas
           </h2>
-          <button onClick={onClose} className="text-xl text-gray-500">
-            ✕
-          </button>
+          <button onClick={onClose} className="text-xl text-gray-500">✕</button>
         </div>
 
         {/* BODY */}
         <div className="flex-1 p-6 overflow-auto">
 
-          {/* LISTADO */}
           {mode === "list" && (
-            <>
-              <div className="text-sm text-gray-600 mb-4">
-                Evaluaciones anteriores
-              </div>
-
-              <div className="border border-dashed rounded-lg p-6 text-center text-gray-400 text-sm">
-                Aún no existen evaluaciones registradas
-              </div>
-            </>
-          )}
-
-          {/* DROPZONE */}
-          {mode === "new" && rows.length === 0 && (
-            <div className="w-full flex justify-center items-center h-full">
-              <div
-                className={`w-full max-w-xl h-64 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-sm transition
-                  ${dragOver ? "border-yellow-400 bg-yellow-50" : "border-gray-300"}
-                `}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragOver(false);
-                  const file = e.dataTransfer.files?.[0];
-                  if (file) handleFile(file);
-                }}
-              >
-                <input
-                  type="file"
-                  accept=".csv"
-                  id="csvInput"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleFile(file);
-                      e.target.value = "";
-                    }
-                  }}
-                />
-
-                {!loading ? (
-                  <>
-                    <p className="text-gray-600 mb-2">
-                      Arrastra tu archivo CSV aquí
-                    </p>
-                    <p className="text-gray-400 mb-4">o</p>
-                    <label
-                      htmlFor="csvInput"
-                      className="cursor-pointer bg-yellow-400 text-blue-900 px-4 py-2 rounded-lg font-medium hover:bg-yellow-300"
-                    >
-                      Seleccionar archivo
-                    </label>
-                  </>
-                ) : (
-                  <p className="text-gray-600">Cargando archivo...</p>
-                )}
-
-                {fileName && (
-                  <p className="mt-4 text-xs text-gray-500">
-                    Archivo: {fileName}
-                  </p>
-                )}
-
-                {error && (
-                  <p className="mt-2 text-red-600 text-xs">
-                    {error}
-                  </p>
-                )}
-              </div>
+            <div className="border border-dashed rounded-lg p-6 text-center text-gray-400">
+              Aún no existen evaluaciones registradas
             </div>
           )}
 
-          {/* PREGUNTAS */}
+          {mode === "new" && rows.length === 0 && (
+            <div
+              className={`h-64 border-2 border-dashed rounded-xl flex items-center justify-center
+                ${dragOver ? "bg-yellow-50 border-yellow-400" : "border-gray-300"}
+              `}
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={e => {
+                e.preventDefault();
+                setDragOver(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) handleFile(file);
+              }}
+            >
+              <input
+                type="file"
+                accept=".csv"
+                id="csvInput"
+                className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFile(file);
+                }}
+              />
+              <label htmlFor="csvInput" className="cursor-pointer text-blue-600">
+                Seleccionar archivo CSV
+              </label>
+              {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
+            </div>
+          )}
+
           {mode === "new" && rows.length > 0 && (
-            <>
-              <div className="text-sm text-gray-600 mb-4">
-                Preguntas a evaluar ({rows.length})
-              </div>
-
-              <div className="border rounded-lg divide-y">
-                {rows.map((row, index) => {
-                  const isExpanded = expanded[index];
-                  const shouldTruncate = row.question.length > 100;
-                  const text =
-                    !shouldTruncate || isExpanded
-                      ? row.question
-                      : row.question.slice(0, 100) + "...";
-
-                  return (
-                    <div
-                      key={index}
-                      className="flex items-start justify-between px-4 py-3 text-sm gap-4"
-                    >
-                      <div className="flex-1 text-gray-800 whitespace-pre-line">
-                        {text}
-                        {shouldTruncate && (
-                          <button
-                            onClick={() => toggleExpand(index)}
-                            className="ml-2 text-blue-600 text-xs hover:underline"
-                          >
-                            {isExpanded ? "Ver menos" : "Ver más"}
-                          </button>
-                        )}
-                      </div>
-
-                      <button
-                        onClick={() => removeQuestion(index)}
-                        className="text-red-500 hover:underline text-xs shrink-0"
-                      >
-                        Eliminar
-                      </button>
+            <div className="border rounded-lg divide-y">
+              {rows.map((row, i) => {
+                const expandedRow = expanded[i];
+                return (
+                  <div key={i} className="p-4 space-y-1 text-sm">
+                    <div>
+                      {expandedRow ? row.question : row.question.slice(0, 120)}
+                      {row.question.length > 120 && (
+                        <button
+                          className="ml-2 text-blue-500 text-xs"
+                          onClick={() => toggleExpand(i)}
+                        >
+                          {expandedRow ? "Ver menos" : "Ver más"}
+                        </button>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            </>
+                    <div className="text-xs text-gray-500">
+                      Expected: {row.expectedResponse}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Método: {row.testMethodType}
+                    </div>
+                    <button
+                      className="text-red-500 text-xs"
+                      onClick={() => removeRow(i)}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
         {/* FOOTER */}
         <div className="border-t px-6 py-4 flex justify-between">
           {mode === "new" && (
-            <button
-              onClick={() => {
-                setMode("list");
-                resetNewTest();
-              }}
-              className="text-sm text-gray-500 hover:underline"
-            >
+            <button onClick={() => { setMode("list"); resetNewTest(); }}>
               ← Volver
             </button>
           )}
 
-          <div className="ml-auto">
-            {mode === "list" ? (
-              <button
-                onClick={() => setMode("new")}
-                className="bg-yellow-400 text-blue-900 px-4 py-2 rounded-lg text-sm font-medium hover:bg-yellow-300"
-              >
-                Iniciar nueva prueba automática
-              </button>
-            ) : (
-              <button
-                disabled={rows.length === 0}
-                className="bg-[#003A8F] text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-              >
-                Ejecutar prueba
-              </button>
-            )}
-          </div>
+          <button
+            onClick={() => setMode(mode === "list" ? "new" : "list")}
+            className="bg-yellow-400 text-blue-900 px-4 py-2 rounded"
+          >
+            {mode === "list"
+              ? "Iniciar nueva prueba"
+              : "Ejecutar prueba"}
+          </button>
         </div>
 
       </div>

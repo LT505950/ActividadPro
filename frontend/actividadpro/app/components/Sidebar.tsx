@@ -1,23 +1,41 @@
 "use client";
-
 import PruebasAutomaticasModal from "./PruebasAutomaticasModal";
-import { useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
 
 type RagType = "actividadpro" | "carbot";
 
+type Conversation = {
+  test_id: string;
+  turns: {
+    role: string;
+    content: string;
+  }[];
+};
+
 type Props = {
   ragActivo: RagType;
-  setRagActivo: (rag: RagType) => void;
+  setRagActivo: Dispatch<SetStateAction<RagType>>;
 };
 
 export default function Sidebar({ ragActivo, setRagActivo }: Props) {
   const [openPruebas, setOpenPruebas] = useState(false);
+  const [openHistorial, setOpenHistorial] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [limit, setLimit] = useState(10);
 
   const cambiarRag = () => {
-    setRagActivo(prev =>
+    setRagActivo((prev) =>
       prev === "actividadpro" ? "carbot" : "actividadpro"
     );
   };
+
+  useEffect(() => {
+    if (!openHistorial) return;
+
+    fetch("/api/conversations")
+      .then((res) => res.json())
+      .then((data) => setConversations(data));
+  }, [openHistorial]);
 
   return (
     <>
@@ -31,9 +49,28 @@ export default function Sidebar({ ragActivo, setRagActivo }: Props) {
             Inicio
           </div>
 
-          <div className="px-3 py-2 rounded-lg hover:bg-blue-700 cursor-pointer">
+          <div
+            className="px-3 py-2 rounded-lg hover:bg-blue-700 cursor-pointer"
+            onClick={() => setOpenHistorial((p) => !p)}
+          >
             Historial
           </div>
+
+          {openHistorial &&
+            conversations.slice(0, limit).map((c) => (
+              <div key={c.test_id} className="px-6 text-xs">
+                {c.turns[0]?.content || "Conversación"}
+              </div>
+            ))}
+
+          {openHistorial && limit < conversations.length && (
+            <div
+              className="px-6 text-xs cursor-pointer"
+              onClick={() => setLimit((p) => p + 10)}
+            >
+              Mostrar más
+            </div>
+          )}
 
           <div
             className="px-3 py-2 rounded-lg hover:bg-blue-700 cursor-pointer"
@@ -42,7 +79,6 @@ export default function Sidebar({ ragActivo, setRagActivo }: Props) {
             Pruebas Automáticas
           </div>
 
-          {/* ✅ BOTÓN RAG REAL */}
           <div
             className="px-3 py-2 rounded-lg hover:bg-blue-700 cursor-pointer"
             onClick={cambiarRag}
