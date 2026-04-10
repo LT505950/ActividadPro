@@ -1,6 +1,4 @@
 def build_prompt(query: str, chunks: list, rag: str) -> str:
-    print(f"Construyendo prompt para RAG '{rag}' con {len(chunks)} chunks")
-
     context = "\n\n".join(c["text"] for c in chunks)
 
     if rag == "carbot":

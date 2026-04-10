@@ -15,8 +15,6 @@ def search_chunks(request):
     rag = getattr(request, "rag", "actividadpro")
     collection = RAG_COLLECTIONS.get(rag, "soporte_actividadpro")
 
-    print(f"RAG solicitado: {rag} → Colección Qdrant: {collection}")
-
     # 3️⃣ Buscar en Qdrant (colección dinámica)
     data = search_qdrant(
         vector=embedding_vector,

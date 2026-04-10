@@ -12,3 +12,10 @@ opentelemetry-api
 opentelemetry-sdk 
 opentelemetry-instrumentation-fastapi
 opentelemetry-exporter-otlp
+ragas
+datasets
+langchain 
+langchain-community
+langchain-ollama
+openai
+openyxl
