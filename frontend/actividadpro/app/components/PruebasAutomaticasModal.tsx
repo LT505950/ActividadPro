@@ -267,20 +267,8 @@ export default function PruebasAutomaticasModal({
               return (
                 <div key={i} className="border-b py-3 text-sm">
                   <div>
-                    <b>Pregunta:</b>{" "}
-                    {expandedRow
-                      ? row.question
-                      : row.question.slice(0, 120)}
-                    {row.question.length > 120 && (
-                      <button
-                        className="text-xs text-blue-500 ml-2"
-                        onClick={() => toggleExpand(i)}
-                      >
-                        {expandedRow ? "Ver menos" : "Ver más"}
-                      </button>
-                    )}
+                    <b>Pregunta:</b> {row.question}
                   </div>
-
                   <div className="text-xs text-gray-500">
                     Expected: {row.expectedResponse}
                   </div>

@@ -9,3 +9,4 @@ a.py
 *.md
 *.txt
 *.csv
+backend/venv/

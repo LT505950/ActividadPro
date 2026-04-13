@@ -19,13 +19,12 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
-# ── SESSION CON REINTENTOS ─────────────────────────────────
 session = requests.Session()
 
 retries = Retry(
-    total=5,
-    backoff_factor=0.5,
-    status_forcelist=[429, 500, 502, 503, 504],
+    total=3,
+    backoff_factor=1.0,
+    status_forcelist=[429, 502, 503, 504],
     allowed_methods=["POST"],
 )
 
@@ -33,25 +32,25 @@ adapter = HTTPAdapter(max_retries=retries)
 session.mount("https://", adapter)
 session.mount("http://", adapter)
 
-# ── GENERACIÓN DE TEXTO ────────────────────────────────────
-def generate_text(prompt: str) -> str:
-    """
-    Genera texto usando POST directo al gateway (/v1/responses),
-    con retry, reuse de conexión y sin SDKs.
-    """
 
+def generate_text(prompt: str) -> str:
     body = {
         "model": MODEL,
-        "input": prompt,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
         "temperature": 0.2,
     }
 
     try:
         resp = session.post(
-            f"{BASE_URL}/v1/responses",
+            f"{BASE_URL}/v1/chat/completions",
             headers=HEADERS,
             json=body,
-            timeout=(10, 120),
+            timeout=(10, 60),
         )
 
         if resp.status_code != 200:
@@ -60,20 +59,10 @@ def generate_text(prompt: str) -> str:
             )
 
         data = resp.json()
-
-        # ✅ extracción robusta del texto
-        if "output_text" in data:
-            return data["output_text"].strip()
-
-        for block in data.get("output", []):
-            for content in block.get("content", []):
-                if content.get("type") == "output_text":
-                    return content.get("text", "").strip()
-
-        raise RuntimeError("No se pudo extraer texto de la respuesta")
+        return data["choices"][0]["message"]["content"].strip()
 
     except requests.exceptions.RequestException as e:
         raise RuntimeError(f"Error de red generación: {e}")
+
     finally:
-        # micro pausa para no saturar gateway
         time.sleep(0.05)

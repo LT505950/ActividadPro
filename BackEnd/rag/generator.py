@@ -1,34 +1,33 @@
-import os
-import ollama
-from dotenv import load_dotenv
+from services.ollama_client import generate_text
 
-load_dotenv()
 
 def generate_answer_stream(prompt: str):
-    """Generador que hace streaming token a token desde Ollama y al final emite info de tokens"""
-    stream = ollama.chat(
-        model=os.getenv("OLLAMA_CHAT_MODEL", "gemma4:e2b"),
-        messages=[{"role": "user", "content": prompt}],
-        stream=True
-    )
+    """
+    Respuesta NO en streaming real.
+    Compatible con el frontend SSE actual.
+    """
 
-    prompt_tokens = 0
-    completion_tokens = 0
+    try:
+        full_text = generate_text(prompt)
 
-    for chunk in stream:
-        token = chunk["message"]["content"]
-        if token:
-            yield {"type": "token", "value": token}
+        # ✅ CLAVE CORRECTA: value
+        yield {
+            "type": "token",
+            "value": full_text
+        }
 
-        # Ollama incluye las estadísticas en el último chunk (done=True)
-        if chunk.get("done"):
-            prompt_tokens = chunk.get("prompt_eval_count", 0)
-            completion_tokens = chunk.get("eval_count", 0)
+        prompt_tokens = len(prompt.split())
+        completion_tokens = len(full_text.split())
 
-    # Al terminar el stream, emitir la info de tokens como evento especial
-    yield {
-        "type": "tokens_info",
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "total_tokens": prompt_tokens + completion_tokens
-    }
+        yield {
+            "type": "tokens_info",
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens
+        }
+
+    except Exception:
+        yield {
+            "type": "token",
+            "value": "Error al generar la respuesta."
+        }

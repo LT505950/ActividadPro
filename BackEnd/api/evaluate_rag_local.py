@@ -1,142 +1,204 @@
-import json
+# ─────────────────────────────────────────────
+# FIXES CRÍTICOS PARA WINDOWS + PYTHON 3.11
+# ─────────────────────────────────────────────
 import os
-from datasets import Dataset
+import asyncio
 
-from ragas import evaluate
+asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+os.environ["RAGAS_DISABLE_ASYNC"] = "true"
+
+# ─────────────────────────────────────────────
+# IMPORTS
+# ─────────────────────────────────────────────
+import time
+import json
+from pathlib import Path
+from typing import List
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from dotenv import load_dotenv
+
+from datasets import (
+    Dataset,
+    Features,
+    Value,
+    Sequence,
+)
+
+from ragas import evaluate, RunConfig
 from ragas.metrics import (
-    faithfulness,
     answer_relevancy,
     context_precision,
-    context_recall,
+    faithfulness,
 )
 
-from langchain_ollama import OllamaLLM, OllamaEmbeddings
+from langchain.embeddings.base import Embeddings
+from services.deepseek_ragas_llm import DeepSeekGatewayLLM
+
 
 # ─────────────────────────────────────────────
-# CONFIG
+# ENV
 # ─────────────────────────────────────────────
+load_dotenv()
 
-BASE_PATH = os.path.join(os.getcwd(), "data", "evaluacion")
+BASE_URL = os.getenv("BASE_URL")
+API_KEY = os.getenv("API_KEY")
+EMBED_MODEL = os.getenv("EMBED_MODEL")
 
-RAG = "actividadpro"  # o "carbot"
-
-JSON_FILE_MAP = {
-    "actividadpro": "evaluar_helpdesk.json",
-    "carbot": "evaluar_carbot.json",
+HEADERS = {
+    "X-Gateway-API-Key": API_KEY,
+    "Content-Type": "application/json",
 }
 
-JSON_PATH = os.path.join(BASE_PATH, JSON_FILE_MAP[RAG])
-
-# MODELOS LOCALES
-LLM_MODEL = "qwen3:0.6b"
-EMBED_MODEL = "bge-m3"
 
 # ─────────────────────────────────────────────
-# LOAD JSON
+# SESSION HTTP CON RETRY
 # ─────────────────────────────────────────────
+session = requests.Session()
 
-if not os.path.exists(JSON_PATH):
-    raise FileNotFoundError(f"No existe el archivo: {JSON_PATH}")
+retries = Retry(
+    total=5,
+    backoff_factor=0.5,
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["POST"],
+)
 
-with open(JSON_PATH, "r", encoding="utf-8") as f:
-    raw_data = json.load(f)
+adapter = HTTPAdapter(max_retries=retries)
+session.mount("https://", adapter)
+session.mount("http://", adapter)
 
-if not raw_data:
-    raise ValueError("El JSON está vacío")
-
-print(f"📄 Filas totales en JSON: {len(raw_data)}")
 
 # ─────────────────────────────────────────────
-# TRANSFORM DATA FOR RAGAS
+# EMBEDDINGS REALES + LOGS
 # ─────────────────────────────────────────────
+_embedding_counter = 0
 
-ragas_rows = []
+def get_embedding(text: str) -> List[float]:
+    global _embedding_counter
+    _embedding_counter += 1
 
-for idx, row in enumerate(raw_data):
-    contexts = []
+    preview = text.replace("\n", " ")[:80]
+    print(f"🧠 [EMB] #{_embedding_counter} → {preview}...")
 
-    for c in row.get("chunks", []):
-        if not isinstance(c, dict):
-            continue
+    start = time.time()
 
-        content = (
-            c.get("content")
-            or c.get("text")
-            or c.get("page_content")
-        )
+    body = {
+        "model": EMBED_MODEL,
+        "input": text,
+        "dimensions": 1024,
+    }
 
-        if content:
-            contexts.append(content)
+    resp = session.post(
+        f"{BASE_URL}/v1/embeddings",
+        headers=HEADERS,
+        json=body,
+        timeout=(10, 60),  # 🔑 MUY IMPORTANTE
+    )
 
-    if not contexts:
-        print(f"⚠️ Fila {idx} descartada: sin chunks")
-        continue
+    resp.raise_for_status()
 
-    if not row.get("respuestaGenerada"):
-        print(f"⚠️ Fila {idx} descartada: sin respuestaGenerada")
-        continue
+    elapsed = time.time() - start
+    print(f"✅ [EMB] #{_embedding_counter} OK ({elapsed:.2f}s)")
 
-    ragas_rows.append({
-        "question": row["question"],
-        "answer": row["respuestaGenerada"],
-        "contexts": contexts,
-        "ground_truth": row["expectedResponse"],
+    time.sleep(0.05)
+    return resp.json()["data"][0]["embedding"]
+
+
+# ─────────────────────────────────────────────
+# ADAPTER LANGCHAIN → RAGAS
+# ─────────────────────────────────────────────
+class GatewayEmbeddings(Embeddings):
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        return [get_embedding(t) for t in texts]
+
+    def embed_query(self, text: str) -> List[float]:
+        return get_embedding(text)
+
+
+# ─────────────────────────────────────────────
+# DATASET (SCHEMA CORRECTO PARA RAGAS)
+# ─────────────────────────────────────────────
+#DATASET_PATH = Path("data/evaluacion/evaluar_carbot.json")
+DATASET_PATH = Path("data/evaluacion/evaluar_helpdesk.json")
+
+def load_ragas_dataset() -> Dataset:
+    with open(DATASET_PATH, "r", encoding="utf-8") as f:
+        raw_data = json.load(f)
+
+    rows = []
+
+    # 🔎 IMPORTANTE: limita a pocos registros mientras depuras
+    for item in raw_data:
+        contexts = [
+            c["text"]
+            for c in item.get("chunks", [])
+            if isinstance(c.get("text"), str) and c.get("text").strip()
+        ]
+
+        rows.append({
+            "question": str(item.get("question", "")),
+            "answer": str(item.get("respuestaGenerada", "")),
+            "ground_truth": str(item.get("expectedResponse", "")),
+            "contexts": contexts,
+        })
+
+    # ✅ SCHEMA EXPLÍCITO (OBLIGATORIO PARA RAGAS)
+    features = Features({
+        "question": Value("string"),
+        "answer": Value("string"),
+        "ground_truth": Value("string"),
+        "contexts": Sequence(Value("string")),
     })
 
-print(f"✅ Filas válidas para RAGAS: {len(ragas_rows)}")
+    return Dataset.from_list(rows, features=features)
 
-if not ragas_rows:
-    raise ValueError("No hay filas válidas para RAGAS")
-
-dataset = Dataset.from_list(ragas_rows)
 
 # ─────────────────────────────────────────────
-# INIT MODELOS LOCALES
+# MAIN
 # ─────────────────────────────────────────────
+if __name__ == "__main__":
+    print("\n🚀 DEBUG RAGAS — INICIO\n")
 
-llm = OllamaLLM(
-    model=LLM_MODEL,
-    temperature=0,
-)
+    dataset = load_ragas_dataset()
+    print(f"📦 Registros cargados: {len(dataset)}\n")
 
-embeddings = OllamaEmbeddings(
-    model=EMBED_MODEL,
-)
+    llm = DeepSeekGatewayLLM()
+    embeddings = GatewayEmbeddings()
 
-# ─────────────────────────────────────────────
-# RUN RAGAS (VERSIÓN COMPATIBLE)
-# ─────────────────────────────────────────────
+    print("▶ Métricas:")
+    print("  - answer_relevancy")
+    print("  - context_precision\n")
+    print("  - faithfulness\n")
 
-results = evaluate(
-    dataset,
-    metrics=[
-        faithfulness,
-        answer_relevancy,
-        context_precision,
-        context_recall,
-    ],
-    llm=llm,
-    embeddings=embeddings,
-)
+    run_config = RunConfig(
+        max_workers=1,   # 🔑 FORZAR SECUENCIAL
+        timeout=300,
+        max_wait=300,
+    )
 
-# ─────────────────────────────────────────────
-# OUTPUT
-# ─────────────────────────────────────────────
+    start = time.time()
 
-print("\n✅ RESULTADOS RAGAS (100% LOCAL)\n")
-for metric, score in results.items():
-    print(f"{metric}: {round(score, 4)}")
+    result = evaluate(
+        dataset=dataset,
+        metrics=[
+            answer_relevancy,
+            context_precision,
+            faithfulness,
+        ],
+        llm=llm,
+        embeddings=embeddings,
+        run_config=run_config,
+        raise_exceptions=True,
+    )
 
-# ─────────────────────────────────────────────
-# SAVE RESULTS
-# ─────────────────────────────────────────────
+    elapsed = time.time() - start
 
-output_path = os.path.join(
-    BASE_PATH,
-    f"ragas_results_{RAG}_local.json"
-)
+    print("\n✅ EVALUACIÓN TERMINADA")
+    print(f"⏱ Tiempo total: {elapsed:.2f}s\n")
+    print(result)
 
-with open(output_path, "w", encoding="utf-8") as f:
-    json.dump(results, f, indent=2, ensure_ascii=False)
-
-print(f"\n📄 Resultados guardados en: {output_path}")
+    output_path = Path("data/evaluacion/resultados_ragas_helpdesk.csv")
+    result.to_pandas().to_csv(output_path, index=False, encoding="utf-8")
+    print(f"\n💾 Resultados guardados en: {output_path}")
