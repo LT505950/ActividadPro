@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Any
 import csv
 import os
 import json
+import shutil
+import re
 
 router = APIRouter(prefix="/csv", tags=["csv"])
 
@@ -31,30 +32,76 @@ JSON_MAP = {
 class CSVRow(BaseModel):
     question: str
     expectedResponse: str
-    testMethodType: str
-    respuestaGenerada: Optional[str] = ""
-    chunks: Optional[List[Any]] = []  # ✅ PARA RAGAS
+    actualResponse: Optional[str] = ""
+    chunks: Optional[List[Any]] = []
 
 class SaveCSVRequest(BaseModel):
     ragActivo: str
     rows: List[CSVRow]
 
+class GuardarVersionRequest(BaseModel):
+    ragActivo: str
+
 # ─────────────────────────────────────────────────────────
-# SAVE CSV + JSON (MISMO ENDPOINT)
+# HELPERS
+# ─────────────────────────────────────────────────────────
+
+def get_next_version(folder: str, base_name: str) -> int:
+    pattern = re.compile(rf"{base_name}_v(\d+)\.csv")
+    versions = []
+
+    for f in os.listdir(folder):
+        m = pattern.fullmatch(f)
+        if m:
+            versions.append(int(m.group(1)))
+
+    return max(versions, default=0) + 1
+
+# ─────────────────────────────────────────────────────────
+# GET CSV BASE
+# ─────────────────────────────────────────────────────────
+
+@router.get("/get/{ragActivo}")
+def get_csv_base(ragActivo: str):
+    csv_name = CSV_MAP.get(ragActivo)
+    if not csv_name:
+        raise HTTPException(400, "RAG inválido")
+
+    rag_path = os.path.join(BASE_PATH, ragActivo)
+    csv_path = os.path.join(rag_path, csv_name)
+
+    if not os.path.exists(csv_path):
+        raise HTTPException(404, "CSV base no encontrado")
+
+    rows = []
+    with open(csv_path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for r in reader:
+            rows.append({
+                "question": r.get("question", ""),
+                "expectedResponse": r.get("expectedResponse", ""),
+                "actualResponse": r.get("actualResponse", ""),
+            })
+
+    return {"rows": rows}
+
+# ─────────────────────────────────────────────────────────
+# SAVE CSV + JSON (INCREMENTAL, COMO ANTES)
 # ─────────────────────────────────────────────────────────
 
 @router.post("/save")
-def save_csv(payload: SaveCSVRequest):
-    filename = CSV_MAP.get(payload.ragActivo)
-    json_filename = JSON_MAP.get(payload.ragActivo)
+def save_csv_base(payload: SaveCSVRequest):
+    csv_name = CSV_MAP.get(payload.ragActivo)
+    json_name = JSON_MAP.get(payload.ragActivo)
 
-    if not filename or not json_filename:
-        raise HTTPException(status_code=400, detail="RAG inválido")
+    if not csv_name or not json_name:
+        raise HTTPException(400, "RAG inválido")
 
-    os.makedirs(BASE_PATH, exist_ok=True)
+    rag_path = os.path.join(BASE_PATH, payload.ragActivo)
+    os.makedirs(rag_path, exist_ok=True)
 
-    csv_path = os.path.join(BASE_PATH, filename)
-    json_path = os.path.join(BASE_PATH, json_filename)
+    csv_path = os.path.join(rag_path, csv_name)
+    json_path = os.path.join(rag_path, json_name)
 
     # ─────────────────────────────
     # 1️⃣ GUARDAR CSV
@@ -62,39 +109,30 @@ def save_csv(payload: SaveCSVRequest):
     try:
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "question",
-                "expectedResponse",
-                "testMethodType",
-                "respuestaGenerada",
-            ])
-
+            writer.writerow(["question", "expectedResponse", "actualResponse"])
             for row in payload.rows:
                 writer.writerow([
                     row.question,
                     row.expectedResponse,
-                    row.testMethodType,
-                    row.respuestaGenerada or "",
+                    row.actualResponse or "",
                 ])
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error guardando CSV: {str(e)}")
+        raise HTTPException(500, f"Error guardando CSV: {str(e)}")
 
     # ─────────────────────────────
-    # 2️⃣ GUARDAR JSON (INCREMENTAL)
+    # 2️⃣ GUARDAR JSON (INCREMENTAL ✅)
     # ─────────────────────────────
     try:
         json_data = []
 
-        # reconstruimos el estado ACTUAL (idempotente)
         for row in payload.rows:
-            if not row.respuestaGenerada:
-                continue  # ⛔ solo lo ya generado
+            if not row.actualResponse:
+                continue  # solo respuestas generadas
 
             json_data.append({
                 "question": row.question,
                 "expectedResponse": row.expectedResponse,
-                "testMethodType": row.testMethodType,
-                "respuestaGenerada": row.respuestaGenerada,
+                "actualResponse": row.actualResponse,
                 "chunks": row.chunks or [],
                 "rag": payload.ragActivo,
             })
@@ -103,28 +141,51 @@ def save_csv(payload: SaveCSVRequest):
             json.dump(json_data, jf, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error guardando JSON: {str(e)}")
+        raise HTTPException(500, f"Error guardando JSON: {str(e)}")
 
     return {"ok": True}
 
 # ─────────────────────────────────────────────────────────
-# GET CSV
+# GUARDAR VERSIÓN + LIMPIAR BASE
 # ─────────────────────────────────────────────────────────
 
-@router.get("/get/{ragActivo}")
-def get_csv(ragActivo: str):
-    filename = CSV_MAP.get(ragActivo)
+@router.post("/guardar-version")
+def guardar_version(payload: GuardarVersionRequest):
+    rag = payload.ragActivo
+    csv_base = CSV_MAP.get(rag)
+    json_base = JSON_MAP.get(rag)
 
-    if not filename:
-        raise HTTPException(status_code=400, detail="RAG inválido")
+    if not csv_base or not json_base:
+        raise HTTPException(400, "RAG inválido")
 
-    file_path = os.path.join(BASE_PATH, filename)
+    rag_path = os.path.join(BASE_PATH, rag)
+    csv_path = os.path.join(rag_path, csv_base)
+    json_path = os.path.join(rag_path, json_base)
 
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="CSV no encontrado")
+    if not os.path.exists(csv_path):
+        raise HTTPException(404, "CSV base no encontrado")
 
-    return FileResponse(
-        file_path,
-        media_type="text/csv",
-        filename=filename
-    )
+    base_name = csv_base.replace(".csv", "")
+    version = get_next_version(rag_path, base_name)
+
+    # copiar CSV y JSON
+    shutil.copyfile(csv_path, os.path.join(rag_path, f"{base_name}_v{version}.csv"))
+    shutil.copyfile(json_path, os.path.join(rag_path, f"{base_name}_v{version}.json"))
+
+    # limpiar CSV base
+    cleaned = []
+    with open(csv_path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for r in reader:
+            cleaned.append([r["question"], r["expectedResponse"], ""])
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["question", "expectedResponse", "actualResponse"])
+        writer.writerows(cleaned)
+
+    # limpiar JSON base
+    with open(json_path, "w", encoding="utf-8") as jf:
+        json.dump([], jf, ensure_ascii=False, indent=2)
+
+    return {"ok": True, "version": f"v{version}"}
