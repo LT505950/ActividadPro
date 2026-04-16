@@ -14,12 +14,10 @@ load_dotenv()
 
 # ───────────────── CONFIG ────────────────────
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
-QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
-
+QDRANT_PORT = int(os.getenv("QDRANT_PORT"))
+COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_CARBOT")
+VECTOR_SIZE = int(os.getenv("VECTOR_SIZE"))
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COLLECTION_NAME = "soporte_carbot"
-
-VECTOR_SIZE = 1024  # bge-m3
 TXT_FOLDER = os.path.join(BASE_DIR, "data", "txt")
 
 # ───────────────── CLIENT ────────────────────

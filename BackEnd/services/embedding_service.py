@@ -11,6 +11,7 @@ load_dotenv()
 BASE_URL = os.getenv("BASE_URL")
 API_KEY = os.getenv("API_KEY")
 EMBED_MODEL = os.getenv("EMBED_MODEL")
+DIMENSIONS = int(os.getenv("VECTOR_SIZE"))
 
 HEADERS = {
     "X-Gateway-API-Key": API_KEY,
@@ -40,7 +41,7 @@ def get_embedding(text: str) -> List[float]:
     body = {
         "model": EMBED_MODEL,
         "input": text,
-        "dimensions": 1024  # ✅ según lo que YA comprobaste que funciona
+        "dimensions": DIMENSIONS
     }
 
     try:

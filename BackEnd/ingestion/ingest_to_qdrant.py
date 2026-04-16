@@ -12,14 +12,11 @@ from embedding import get_embedding
 load_dotenv()
 
 # ── CONFIG ──────────────────────────────────────────────────
-QDRANT_HOST     = os.getenv("QDRANT_HOST", "localhost")
-QDRANT_PORT     = int(os.getenv("QDRANT_PORT", 6333))
-COLLECTION_NAME = "soporte_actividadpro"
-
-# ✅ dimensión real comprobada en tu gateway
-VECTOR_SIZE = 1024
-
-BATCH_SIZE = 100
+QDRANT_HOST     = os.getenv("QDRANT_HOST")
+QDRANT_PORT     = int(os.getenv("QDRANT_PORT"))
+COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_ACTIVIDADPRO")
+VECTOR_SIZE    = int(os.getenv("VECTOR_SIZE"))
+BATCH_SIZE     = int(os.getenv("BATCH_SIZE"))
 
 # ── INIT CLIENT ─────────────────────────────────────────────
 client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)

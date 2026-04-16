@@ -1,10 +1,16 @@
 from services.embedding_service import get_embedding
 from services.qdrant_service import search_qdrant
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ✅ Mapeo central de RAG → colección Qdrant
+COLLECTION_ACTIVIDADPRO = os.getenv("QDRANT_COLLECTION_ACTIVIDADPRO")
+COLLECTION_CARBOT = os.getenv("QDRANT_COLLECTION_CARBOT")
 RAG_COLLECTIONS = {
-    "actividadpro": "soporte_actividadpro",
-    "carbot": "soporte_carbot"
+    "actividadpro": COLLECTION_ACTIVIDADPRO,
+    "carbot": COLLECTION_CARBOT
 }
 
 def search_chunks(request):

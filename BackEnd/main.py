@@ -4,6 +4,7 @@ from api.conversations_routes import router as conversation_router
 from api.ragas_dashboard import router as ragas_dashboard_router
 from api.routes import router
 from api.csv_routes import router as csv_router
+import observability
 
 app = FastAPI()
 

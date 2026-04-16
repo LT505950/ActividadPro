@@ -2,10 +2,13 @@ from langchain.llms.base import LLM
 from typing import Optional, List
 import requests
 import os
+import dotenv
 
-
+dotenv.load_dotenv()
+EVALUATE_MODEL = os.getenv("EVALUATE_MODEL")
 class DeepSeekGatewayLLM(LLM):
-    model: str = "DeepSeek-V3.2"
+
+    model: str = EVALUATE_MODEL
 
     @property
     def _llm_type(self) -> str:
